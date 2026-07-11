@@ -1,0 +1,62 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>CODE://INJECT</title>
+  <script type="module" crossorigin src="./assets/index-3EfJzUJu.js"></script>
+  <link rel="stylesheet" crossorigin href="./assets/index-OveBvbLN.css">
+</head>
+<body>
+
+<header class="hud">
+  <span class="brand">CODE://INJECT</span>
+  <span class="crumb" id="crumb"><span class="seg">—</span></span>
+  <span class="stat"><span class="k">WPM</span><span class="v" id="wpm">0</span></span>
+  <span class="stat"><span class="k">ACC</span><span class="v" id="acc">100</span></span>
+  <span class="stat"><span class="k">COMBO</span><span class="v" id="combo">0</span></span>
+  <button class="sound-toggle" id="sndBtn" data-on="true">SOUND: ON</button>
+</header>
+<div class="combo-bar"><div class="fill" id="comboFill"></div></div>
+
+<main class="stage">
+  <div class="code" id="code" tabindex="0" aria-label="写経エリア"></div>
+</main>
+
+<div class="overlay" id="intro">
+  <div class="panel">
+    <h1>INJECT CODE</h1>
+    <p>コードファイルを注入して写経開始(ローカル処理のみ・送信なし)<br>
+    インデントとコメントは自動スキップ / Enter・スペースは打つ<br>
+    <span style="color:#9fe8ff">開き括弧を打つと相方が点灯 —
+    閉じ括弧は「打つ」か「次の文字で通過」のどちらでも正解</span><br>
+    ミスすると正しいキーを打つまで進めない</p>
+    <div class="dropzone" id="dropzone" tabindex="0" role="button"
+         aria-label="コードファイルを選択またはドロップ">
+      ここにファイルをドロップ / クリックして選択<br>
+      またはコードをペースト(Ctrl+V)
+    </div>
+    <div class="load-note" id="loadNote"></div>
+    <input type="file" id="filePick" hidden>
+    <button id="startBtn">サンプルでSTART</button>
+  </div>
+</div>
+
+<div class="overlay hidden" id="result">
+  <div class="panel">
+    <h1>INJECTION COMPLETE</h1>
+    <div class="big" id="rScore">0</div>
+    <p style="letter-spacing:2px;font-size:10px;color:#565b7a">SCORE (P1仮 — P3で補正スコアに置換)</p>
+    <div class="grid">
+      <div><div class="v" id="rWpm">0</div><div class="k">WPM</div></div>
+      <div><div class="v" id="rAcc">0%</div><div class="k">ACCURACY</div></div>
+      <div><div class="v" id="rMax">0</div><div class="k">MAX COMBO</div></div>
+      <div><div class="v" id="rPass">0</div><div class="k">PASSED ( )</div></div>
+      <div><div class="v" id="rTime">0:00</div><div class="k">TIME</div></div>
+    </div>
+    <button id="rRetry">RETRY</button>
+  </div>
+</div>
+
+</body>
+</html>

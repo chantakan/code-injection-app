@@ -1,0 +1,25 @@
+[package]
+name = "difficulty-engine"
+version = "0.1.0"
+edition = "2021"
+description = "CODE://INJECT 難易度エンジン(handoff.md §5/§6)。決定的・再現可能が絶対条件"
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[dependencies]
+wasm-bindgen = "0.2"
+serde = { version = "1", features = ["derive"] }
+serde-wasm-bindgen = "0.6"
+
+[profile.release]
+# サイズ優先。決定性には影響しない(rustc に fast-math 系の最適化は存在せず、
+# wasm の f64 演算は IEEE 754 準拠で環境非依存)
+opt-level = "s"
+lto = true
+
+# wasm-opt は PATH 上のシステム binaryen が使われ、バージョンによっては
+# externref テーブルの max を潰して init 時に RangeError を起こす
+# (/usr/bin/wasm-opt で実際に発生)。生成物を環境非依存にするため無効化
+[package.metadata.wasm-pack.profile.release]
+wasm-opt = false
