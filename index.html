@@ -16,6 +16,7 @@
   <span class="stat"><span class="k">ACC</span><span class="v" id="acc">100</span></span>
   <span class="stat"><span class="k">COMBO</span><span class="v" id="combo">0</span></span>
   <button class="sound-toggle" id="sndBtn" data-on="true">SOUND: ON</button>
+  <button class="icon-btn" id="rankingBtn" aria-label="ランキング" title="ランキング">RANK</button>
   <button class="icon-btn" id="settingsBtn" aria-label="設定" title="設定">⚙</button>
 </header>
 <div class="combo-bar"><div class="fill" id="comboFill"></div></div>
@@ -105,8 +106,26 @@
     </div>
 
     <p id="rGhostNote" style="letter-spacing:1px;font-size:10px;color:#565b7a;word-break:break-all"></p>
+
+    <div class="ranking-submit hidden" id="rankingSubmit">
+      <label for="rName">RANKING NAME</label>
+      <input type="text" id="rName" maxlength="20" placeholder="表示名(20文字以内)" autocomplete="off">
+      <button id="rSubmitBtn">SUBMIT TO RANKING</button>
+      <p class="ranking-submit-note" id="rSubmitNote"></p>
+    </div>
+
     <button id="rShare">COPY GHOST URL</button>
     <button id="rRetry">RETRY</button>
+  </div>
+</div>
+
+<div class="overlay hidden" id="ranking">
+  <div class="panel">
+    <h1>RANKING</h1>
+    <div class="ranking-tabs" id="rankingTabs"></div>
+    <div class="ranking-body" id="rankingTable"></div>
+    <p class="ranking-note" id="rankingNote"></p>
+    <button id="rankingClose">CLOSE</button>
   </div>
 </div>
 

@@ -374,3 +374,79 @@ body.shake .stage { animation: shake .12s 1; }
 }
 @keyframes toast-out { to { opacity: 0; } }
 @media (prefers-reduced-motion: reduce) { .toast { animation: none; } }
+
+/* ---------- リザルト: ランキング投稿フォーム(§6, §11, P7) ---------- */
+.ranking-submit {
+  margin-top: 20px;
+  padding-top: 16px;
+  border-top: 1px solid var(--line);
+  text-align: left;
+}
+.ranking-submit.hidden { display: none; }
+.ranking-submit label {
+  display: block;
+  font-family: 'Chakra Petch', sans-serif;
+  font-size: 10px; letter-spacing: 2px; color: #565b7a;
+  margin-bottom: 6px;
+}
+.ranking-submit input {
+  width: 100%;
+  background: rgba(0,240,255,.03);
+  border: 1px solid var(--line);
+  color: #cfd6ff;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 13px;
+  padding: 8px 10px;
+}
+.ranking-submit input:focus-visible { outline: 2px solid var(--lit); outline-offset: 2px; }
+.ranking-submit button {
+  margin-top: 12px;
+  width: 100%;
+}
+.ranking-submit button:disabled {
+  color: #565b7a; border-color: var(--line); cursor: not-allowed;
+  box-shadow: none; background: none;
+}
+.ranking-submit-note { font-size: 11px; color: #565b7a; margin-top: 8px; line-height: 1.7; }
+.ranking-submit-note.err { color: var(--miss); }
+.ranking-submit-note.ok { color: var(--combo); }
+
+/* ---------- ランキング画面(§7 画面構成4、P7) ---------- */
+#ranking .panel { max-width: min(640px, 92vw); }
+.ranking-tabs {
+  display: flex; flex-wrap: wrap; gap: 6px; justify-content: center;
+  margin-top: 18px;
+}
+.ranking-tab {
+  background: none; border: 1px solid var(--line); color: #565b7a;
+  font-family: 'Chakra Petch', sans-serif; font-size: 11px; letter-spacing: 1px;
+  padding: 6px 12px; cursor: pointer;
+}
+.ranking-tab:hover { color: var(--lit); border-color: var(--lit); }
+.ranking-tab.active { color: var(--lit); border-color: var(--lit); background: rgba(0,240,255,.06); }
+.ranking-tab:focus-visible { outline: 2px solid var(--combo); outline-offset: 2px; }
+
+.ranking-body {
+  margin-top: 16px;
+  max-height: 50vh;
+  overflow-y: auto;
+  overflow-x: auto;
+}
+.ranking-empty { color: #565b7a; font-size: 12px; padding: 20px 0; text-align: center; }
+.ranking-table { width: 100%; border-collapse: collapse; font-size: 12px; }
+.ranking-table th, .ranking-table td {
+  padding: 6px 10px;
+  border-bottom: 1px solid rgba(24,24,48,.6);
+  text-align: right;
+  white-space: nowrap;
+}
+.ranking-table th:nth-child(2), .ranking-table td:nth-child(2) { text-align: left; }
+.ranking-table th {
+  font-family: 'Chakra Petch', sans-serif; font-size: 9px; letter-spacing: 2px;
+  color: #565b7a; text-transform: uppercase;
+}
+.ranking-table td { color: #cfd6ff; }
+.ranking-table td:nth-child(3) { color: var(--combo); } /* SCORE 列を強調 */
+.ranking-table tr:nth-child(1) td { color: var(--lit); text-shadow: 0 0 8px rgba(0,240,255,.4); } /* 1位 */
+.ranking-note { font-size: 11px; color: #565b7a; margin-top: 10px; }
+.ranking-note:empty { display: none; }

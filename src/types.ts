@@ -180,20 +180,54 @@ export interface DifficultyScore {
   scoreVersion: number;
 }
 
-/** ランキング 1 レコード(§6, §11)。P7 で PHP 側と共有する形 */
+/**
+ * ランキング投稿 1 件分のペイロード(§6, §11, P7)。POST /server/rank.php の body。
+ * サーバーは wpm/accuracy/score をこの申告値のまま信用せず、replay.events から
+ * 再計算した値だけを保存する(§13「リプレイからスコア再計算して一致確認」)。
+ * wpm/accuracy/postedAt はサーバー側で確定するため送信不要。
+ */
 export interface RankingEntry {
   name: string;
   /** plain は投稿不可(§2) */
   language: Exclude<LanguageId, 'plain'>;
-  wpm: number;
   difficulty: DifficultyScore;
   /** 長さ係数: 約2000文字まで逓減、以降 1.0(§6) */
   lengthFactor: number;
-  /** 補正スコア = wpm × difficulty.value × lengthFactor(§6) */
-  score: number;
-  /** スコア検証用リプレイ(§11) */
+  /** 投稿資格(§6: 300 文字以上)の判定・サーバー側でのリプレイ整合チェックに使う */
+  typableCount: number;
+  /** スコア検証用リプレイ(§11)。sourceHash 必須 */
   replay: Replay;
+}
+
+/** ランキング一覧 1 件分(§7 ランキング画面)。サーバー再計算後の確定値 */
+export interface RankingListEntry {
+  name: string;
+  wpm: number;
+  accuracy: number;
+  difficulty: number;
+  score: number;
   postedAt: number;
+}
+
+/** GET /server/rank.php のレスポンス形。plain を除く全言語ぶん */
+export type RankingMap = Partial<Record<Exclude<LanguageId, 'plain'>, RankingListEntry[]>>;
+
+/** POST /server/rank.php 成功時のレスポンス */
+export interface RankingSubmitResponse {
+  ok: true;
+  /** 上位 N 件内の順位(1-based)。圏外なら null(§11) */
+  rank: number | null;
+  /** 更新後のその言語のランキング全件(表示用) */
+  entries: RankingListEntry[];
+}
+
+/** POST/GET /server/rank.php エラー時のレスポンス */
+export interface RankingApiError {
+  ok: false;
+  /** 機械可読なエラーコード(例: 'ng-name' | 'not-eligible' | 'replay-mismatch' 等) */
+  error: string;
+  /** 表示用の日本語メッセージ */
+  message: string;
 }
 
 // ------------------------------------------------------------- 読み込み(loader.ts)

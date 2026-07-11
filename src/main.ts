@@ -22,10 +22,12 @@ import type {
   HistoryEntry,
   KeyResult,
   LanguageId,
+  RankingEntry,
+  RankingMap,
   Replay,
   SessionResult,
 } from './types';
-import { SYNTAX_CHECK } from './types';
+import { LIMITS, SYNTAX_CHECK } from './types';
 import { buildCharModel, normalizeNewlines } from './charModel';
 import { analyze, detectLanguage, initAnalyzer } from './analyzer';
 import { InputEngine } from './input';
@@ -46,9 +48,17 @@ import { LocalStore } from './storage';
 import { GhostPlayer } from './ghost';
 import { SettingsStore } from './settings';
 import { BackgroundFX } from './background';
+import { fetchRankings, initRanking, submitRanking } from './ranking';
+import { entriesFor, renderRankingTable, renderRankingTabs } from './rankingUI';
 
 initAnalyzer({ runtimeWasmPath: treeSitterWasmUrl });
 initDifficulty({ wasmUrl: difficultyWasmUrl });
+// VITE_RANKING_API_URL 未設定時は ranking.ts の既定(同一オリジン相対パス './server/rank.php')
+// をそのまま使う(§11: dist/ と server/ を同じドメイン配下に置く配置が前提)
+{
+  const apiUrl = import.meta.env['VITE_RANKING_API_URL'];
+  if (typeof apiUrl === 'string' && apiUrl.length > 0) initRanking({ endpoint: apiUrl });
+}
 
 // ファイルを用意しなくても試せる組み込みサンプル(モックv2と同一)
 const SAMPLE = `// フィボナッチ数列をメモ化で計算する
@@ -108,6 +118,21 @@ let session: Session | null = null;
 let sharedReplay: Replay | null = null;
 /** リザルトの COPY GHOST URL 用(finish 時に確定) */
 let shareUrl: string | null = null;
+
+// ------------------------------------------------------------ P7: ランキング(§6, §11)
+
+/** plain はランキング対象外(§2)。RankingEntry.language の型と一致させる絞り込み */
+function isRankingLanguage(lang: LanguageId): lang is Exclude<LanguageId, 'plain'> {
+  return lang !== 'plain';
+}
+
+/**
+ * 投稿資格を満たしたリザルトの投稿待ちペイロード(§6: score !== null && typableCount >= 300)。
+ * name はフォーム送信時に付与するのでここでは含めない
+ */
+let pendingSubmission: Omit<RankingEntry, 'name'> | null = null;
+let rankingData: RankingMap | null = null;
+let rankingActiveLang: Exclude<LanguageId, 'plain'> = 'javascript';
 
 /** テキスト確定 → 写経開始(loader / サンプルボタンの合流点)。async の呼び口 */
 function launch(text: string, fileName: string | null): void {
@@ -229,8 +254,29 @@ function finish(s: Session, now: number): void {
     console.warn('[CODE://INJECT] persist failed:', e);
     mustGet('rGhostNote').textContent = '保存に失敗しました(localStorage 無効?)';
   });
-  // ランキング投稿(P7)は score !== null かつ
-  // typableCount >= LIMITS.minTypableForRanking が資格条件(§6)
+
+  // ランキング投稿(§6, §11, P7): score !== null かつ typableCount >= 300 が資格条件
+  const submitEl = mustGet('rankingSubmit');
+  const nameEl = mustGet('rName') as HTMLInputElement;
+  const submitBtn = mustGet('rSubmitBtn') as HTMLButtonElement;
+  const noteEl = mustGet('rSubmitNote');
+  if (score !== null && s.model.typableCount >= LIMITS.minTypableForRanking && isRankingLanguage(s.model.language)) {
+    pendingSubmission = {
+      language: s.model.language,
+      difficulty: { value: score.difficulty.value, scoreVersion: score.difficulty.scoreVersion },
+      lengthFactor: score.lengthFactor,
+      typableCount: s.model.typableCount,
+      replay: s.engine.replay(s.sourceHash),
+    };
+    submitEl.classList.remove('hidden');
+    nameEl.value = '';
+    submitBtn.disabled = false;
+    noteEl.textContent = '';
+    noteEl.className = 'ranking-submit-note';
+  } else {
+    pendingSubmission = null;
+    submitEl.classList.add('hidden');
+  }
 }
 
 /**
@@ -449,6 +495,79 @@ mustGet('rShare').addEventListener('click', () => {
       mustGet('rGhostNote').textContent = url; // フォールバック: 手動コピー用に表示
     },
   );
+});
+
+// ------------------------------------------------------------ P7: ランキング画面(§7, §11)
+
+function renderRankingScreen(): void {
+  renderRankingTabs(mustGet('rankingTabs'), rankingActiveLang, (lang) => {
+    rankingActiveLang = lang;
+    renderRankingScreen();
+  });
+  renderRankingTable(mustGet('rankingTable'), entriesFor(rankingData, rankingActiveLang));
+}
+
+mustGet('rankingBtn').addEventListener('click', () => {
+  const s = session;
+  if (s !== null && isRankingLanguage(s.model.language)) rankingActiveLang = s.model.language;
+  mustGet('ranking').classList.remove('hidden');
+  renderRankingScreen();
+  const noteEl = mustGet('rankingNote');
+  noteEl.textContent = rankingData === null ? '読み込み中…' : '';
+  fetchRankings().then(
+    (data) => {
+      rankingData = data;
+      noteEl.textContent = '';
+      renderRankingScreen();
+    },
+    (e: unknown) => {
+      console.warn('[CODE://INJECT] fetchRankings failed:', e);
+      noteEl.textContent = 'ランキングを取得できませんでした(通信環境を確認してください)';
+    },
+  );
+});
+mustGet('rankingClose').addEventListener('click', () => {
+  mustGet('ranking').classList.add('hidden');
+  hud.focus();
+});
+
+// ランキング投稿(§6, §11, P7)。wpm/accuracy/score はサーバーが replay から再計算するため送らない(§13)
+mustGet('rSubmitBtn').addEventListener('click', () => {
+  const pending = pendingSubmission;
+  const nameEl = mustGet('rName') as HTMLInputElement;
+  const submitBtn = mustGet('rSubmitBtn') as HTMLButtonElement;
+  const noteEl = mustGet('rSubmitNote');
+  if (pending === null) return;
+  const name = nameEl.value.trim();
+  if (name === '') {
+    noteEl.textContent = '名前を入力してください';
+    noteEl.className = 'ranking-submit-note err';
+    return;
+  }
+  submitBtn.disabled = true;
+  noteEl.textContent = '送信中…';
+  noteEl.className = 'ranking-submit-note';
+  submitRanking({ ...pending, name })
+    .then((res) => {
+      if (res.ok) {
+        noteEl.textContent =
+          res.rank !== null ? `RANK IN! 現在 ${res.rank} 位` : 'ランキングに投稿しました(上位圏外)';
+        noteEl.className = 'ranking-submit-note ok';
+        rankingData = { ...(rankingData ?? {}), [pending.language]: res.entries };
+        if (rankingActiveLang === pending.language) renderRankingScreen();
+        // 連投防止: 成功後は同一リザルトからの再送信を禁止(ボタンは無効のまま)
+      } else {
+        noteEl.textContent = res.message;
+        noteEl.className = 'ranking-submit-note err';
+        submitBtn.disabled = false;
+      }
+    })
+    .catch((e: unknown) => {
+      console.warn('[CODE://INJECT] submitRanking failed:', e);
+      noteEl.textContent = '通信に失敗しました(オフライン?)';
+      noteEl.className = 'ranking-submit-note err';
+      submitBtn.disabled = false;
+    });
 });
 
 // 共有 URL(#r=…)で開かれた場合: 復号して保持(§11)。同じ原文の読み込みで発動(§10)

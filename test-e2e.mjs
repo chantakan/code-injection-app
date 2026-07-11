@@ -360,5 +360,111 @@ assert.equal(rmErrors.length, 0, `page errors: ${rmErrors.join(' | ')}`);
 ok('reduced-motion 環境(背景は静止フレーム)でもエラーなし(§7)');
 await ctxRM.close();
 
+// ---------------------------------------------------------------- 13. ランキング(P7 §6, §11)
+console.log('ランキング画面・投稿(P7 §6, §11):');
+const ctxRank = await browser.newContext();
+const pRank = await ctxRank.newPage();
+
+// server/rank.php をモック。GET は固定データ、POST は postHandler を差し替えて挙動を切り替える
+let postHandler = async (route) => {
+  await route.fulfill({ status: 500, contentType: 'application/json', body: '{"ok":false,"error":"server-error","message":"?"}' });
+};
+await pRank.route('**/server/rank.php', async (route) => {
+  if (route.request().method() === 'GET') {
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        ok: true,
+        updatedAt: 0,
+        rankings: {
+          javascript: [{ name: 'ALICE', wpm: 80, accuracy: 98, difficulty: 1.1, score: 88, postedAt: 1 }],
+          typescript: [], python: [], c: [], rust: [], go: [], haskell: [], lean4: [],
+        },
+      }),
+    });
+  } else {
+    await postHandler(route);
+  }
+});
+
+await pRank.goto(BASE);
+await pRank.click('#rankingBtn');
+assert.ok(!(await pRank.locator('#ranking').getAttribute('class')).includes('hidden'));
+await pRank.waitForSelector('.ranking-table');
+assert.equal(await pRank.locator('.ranking-table tbody tr').count(), 1);
+assert.match(await pRank.locator('.ranking-table tbody tr').innerText(), /ALICE/);
+ok('ランキングボタンで一覧取得・表示(§7)');
+
+await pRank.click('.ranking-tab:nth-child(2)'); // typescript タブ(モックでは0件)
+assert.match(await pRank.locator('.ranking-body').innerText(), /まだ記録がありません/);
+ok('言語タブ切り替えで表示が変わる(§7、再取得なしのローカル切り替え)');
+
+await pRank.click('#rankingClose');
+assert.ok((await pRank.locator('#ranking').getAttribute('class')).includes('hidden'));
+ok('CLOSE でランキング画面を閉じる');
+
+// 投稿資格なし(300文字未満): 投稿フォームが出ない(§6)
+const shortText = 'const x = 1;\nconsole.log(x);\n';
+await pasteIn(pRank, shortText);
+await pRank.waitForSelector('#intro.hidden', { state: 'attached' });
+await pRank.keyboard.type(shortText, { delay: 5 });
+await pRank.waitForSelector('#result:not(.hidden)');
+assert.ok((await pRank.locator('#rankingSubmit').getAttribute('class')).includes('hidden'));
+ok('投稿資格なし(300文字未満)では投稿フォームが出ない(§6)');
+
+// 投稿資格あり(javascript として判定される長文 = 打鍵対象文字数がそのまま300文字超)。
+// console.log(...) 呼び出しを混ぜて内容ヒューリスティック(§2)が javascript と判定するようにする
+// (const 代入だけの繰り返しだと信号不足で plain 判定になり得るため)
+const rankingText = Array.from(
+  { length: 12 },
+  (_, i) => `const v${i} = ${i};\nconsole.log(v${i});\n`,
+).join('');
+assert.ok(rankingText.length >= 300);
+await pRank.goto(BASE);
+await pasteIn(pRank, rankingText);
+await pRank.waitForSelector('#intro.hidden', { state: 'attached' });
+await pRank.keyboard.type(rankingText, { delay: 1 });
+await pRank.waitForSelector('#result:not(.hidden)');
+assert.ok(!(await pRank.locator('#rankingSubmit').getAttribute('class')).includes('hidden'));
+ok('投稿資格あり(300文字以上・スコアあり)で投稿フォームが出る(§6)');
+
+// サーバーがエラーを返す場合(NGワード等): メッセージ表示・ボタン再有効化
+postHandler = async (route) => {
+  await route.fulfill({
+    status: 400,
+    contentType: 'application/json',
+    body: JSON.stringify({ ok: false, error: 'ng-name', message: 'その名前は使用できません' }),
+  });
+};
+await pRank.fill('#rName', 'admin');
+await pRank.click('#rSubmitBtn');
+await pRank.waitForFunction(() =>
+  (document.getElementById('rSubmitNote')?.textContent ?? '').includes('使用できません'));
+assert.ok(!(await pRank.locator('#rSubmitBtn').isDisabled()));
+ok('NGワード等のサーバーエラーはメッセージ表示・ボタン再有効化(§11)');
+
+// 投稿成功: サーバー確定値(rank)を表示し、連投を防止(ボタンは無効のまま)
+postHandler = async (route) => {
+  await route.fulfill({
+    status: 200,
+    contentType: 'application/json',
+    body: JSON.stringify({
+      ok: true,
+      rank: 3,
+      entries: [{ name: 'YOU', wpm: 90, accuracy: 99, difficulty: 1.2, score: 100, postedAt: 2 }],
+    }),
+  });
+};
+await pRank.fill('#rName', 'テスト');
+await pRank.click('#rSubmitBtn');
+await pRank.waitForFunction(() =>
+  (document.getElementById('rSubmitNote')?.textContent ?? '').includes('RANK IN'));
+assert.match(await pRank.locator('#rSubmitNote').innerText(), /3 位/);
+assert.ok(await pRank.locator('#rSubmitBtn').isDisabled());
+ok('投稿成功でサーバー確定順位を表示し連投を防止(§13)');
+
+await ctxRank.close();
+
 await browser.close();
 console.log(`\n全 ${n} 項目パス`);

@@ -10,3 +10,5 @@ export * from './src/settings';
 export * from './src/heatmap';
 export * from './src/rhythm';
 export { frameParams } from './src/background'; // BackgroundFX 本体は canvas 依存のため純関数のみ
+export * from './src/ranking';
+export * from './src/rankingUI';

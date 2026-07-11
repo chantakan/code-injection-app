@@ -1,0 +1,8 @@
+# data/ 配下への直接HTTPアクセスを拒否(rank.php はファイルシステム経由で読み書きするため影響なし)
+<IfModule mod_authz_core.c>
+    Require all denied
+</IfModule>
+<IfModule !mod_authz_core.c>
+    Order allow,deny
+    Deny from all
+</IfModule>
