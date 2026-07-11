@@ -7,6 +7,8 @@
 </head>
 <body>
 
+<canvas id="bgfx" aria-hidden="true"></canvas>
+
 <header class="hud">
   <span class="brand">CODE://INJECT</span>
   <span class="crumb" id="crumb"><span class="seg">—</span></span>
@@ -14,6 +16,7 @@
   <span class="stat"><span class="k">ACC</span><span class="v" id="acc">100</span></span>
   <span class="stat"><span class="k">COMBO</span><span class="v" id="combo">0</span></span>
   <button class="sound-toggle" id="sndBtn" data-on="true">SOUND: ON</button>
+  <button class="icon-btn" id="settingsBtn" aria-label="設定" title="設定">⚙</button>
 </header>
 <div class="combo-bar"><div class="fill" id="comboFill"></div></div>
 
@@ -37,6 +40,43 @@
     <div class="load-note" id="loadNote"></div>
     <input type="file" id="filePick" hidden>
     <button id="startBtn">サンプルでSTART</button>
+
+    <ul class="lang-icons" id="langIcons" aria-label="対応言語">
+      <li class="lang-icon" data-lang="javascript">JS</li>
+      <li class="lang-icon" data-lang="typescript">TS</li>
+      <li class="lang-icon" data-lang="python">PY</li>
+      <li class="lang-icon" data-lang="c">C</li>
+      <li class="lang-icon" data-lang="rust">RS</li>
+      <li class="lang-icon" data-lang="go">GO</li>
+      <li class="lang-icon" data-lang="haskell">HS</li>
+      <li class="lang-icon" data-lang="lean4">λ4</li>
+    </ul>
+
+    <section class="history" aria-label="ローカル履歴">
+      <h2>LOCAL HISTORY</h2>
+      <ol class="history-list" id="historyList"></ol>
+    </section>
+  </div>
+</div>
+
+<div class="overlay hidden" id="settings">
+  <div class="panel">
+    <h1>SETTINGS</h1>
+
+    <fieldset class="setting-group" id="effectLevelGroup">
+      <legend>演出強度</legend>
+      <label><input type="radio" name="effectLevel" value="off"> OFF</label>
+      <label><input type="radio" name="effectLevel" value="low"> 弱</label>
+      <label><input type="radio" name="effectLevel" value="normal"> 標準</label>
+    </fieldset>
+
+    <fieldset class="setting-group">
+      <legend>構造理解サポート(§9)</legend>
+      <label><input type="checkbox" id="scopeBgToggle"> スコープ背景</label>
+      <label><input type="checkbox" id="refHighlightToggle"> 参照ハイライト</label>
+    </fieldset>
+
+    <button id="settingsClose">CLOSE</button>
   </div>
 </div>
 
@@ -52,6 +92,18 @@
       <div><div class="v" id="rPass">0</div><div class="k">PASSED ( )</div></div>
       <div><div class="v" id="rTime">0:00</div><div class="k">TIME</div></div>
     </div>
+    <div class="result-viz">
+      <div class="result-viz-item">
+        <h2>MISS MAP</h2>
+        <svg id="rHeatmap" class="rheat" viewBox="0 0 1 1" role="img" aria-label="ミス箇所ヒートマップ"></svg>
+        <p class="result-viz-note" id="rHeatmapNote">ミスなし</p>
+      </div>
+      <div class="result-viz-item">
+        <h2>RHYTHM</h2>
+        <svg id="rRhythm" class="rrhythm" viewBox="0 0 1 1" role="img" aria-label="打鍵リズムグラフ"></svg>
+      </div>
+    </div>
+
     <p id="rGhostNote" style="letter-spacing:1px;font-size:10px;color:#565b7a;word-break:break-all"></p>
     <button id="rShare">COPY GHOST URL</button>
     <button id="rRetry">RETRY</button>

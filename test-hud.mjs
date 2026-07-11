@@ -11,6 +11,13 @@ import {
   buildCharModel, InputEngine, initAnalyzer, analyze, Hud,
 } from './.test/entry.bundle.mjs';
 
+/** hud.showResult に渡すダミー SessionResult(P6 テスト用) */
+const dummyResult = (overrides = {}) => ({
+  wpm: 42, accuracy: 96, combo: 0, maxCombo: 5, hits: 20, misses: 1,
+  passedCount: 2, elapsedMs: 12000, mode: 'ranking', language: 'javascript',
+  missIndices: [], finishedAt: Date.now(), ...overrides,
+});
+
 initAnalyzer({
   grammarBase: new URL('./public/grammars/', import.meta.url).pathname,
   fetchBytes: async (path) => new Uint8Array(await readFile(path)),
@@ -19,7 +26,14 @@ initAnalyzer({
 const dom = new JSDOM(`<!DOCTYPE html><body>
   <span id="crumb"></span><span id="wpm"></span><span id="acc"></span>
   <span id="combo"></span><div id="comboFill"></div>
-  <div id="code" tabindex="0"></div><div id="result" class="hidden"></div>
+  <div id="code" tabindex="0"></div>
+  <div id="result" class="hidden">
+    <div id="rScore"></div><div id="rScoreNote"></div>
+    <div id="rWpm"></div><div id="rAcc"></div><div id="rMax"></div>
+    <div id="rPass"></div><div id="rTime"></div>
+    <svg id="rHeatmap"></svg><p id="rHeatmapNote"></p>
+    <svg id="rRhythm"></svg>
+  </div>
 </body>`);
 const doc = dom.window.document;
 // jsdom 未実装 API のスタブ
@@ -132,6 +146,103 @@ console.log('クォートの pair-lit と type-over 描画(§3):');
   });
   ok('passed は done を持たない(WPM 非加算の視覚的対応 §3)', () => {
     assert.ok(!spans()[at(m, ')')].classList.contains('done'));
+  });
+}
+
+// ---------------------------------------------------------------- スコープ背景(§9, P6)
+console.log('スコープ背景(§9):');
+{
+  const src = 'function fib(n) {\n  if (n <= 1) return n;\n  return n;\n}\n';
+  const m = buildCharModel(src, 'javascript', await analyze(src, 'javascript'));
+  const h = new Hud(doc);
+  h.mount(m);
+  const e = new InputEngine(m);
+  e.start(0);
+  h.begin(e.cursor);
+
+  ok('既定 ON: 関数スコープに入ると scope-bg が付く', () => {
+    // 最初の打鍵(先頭 'f')で関数スコープに入る
+    const res = e.handleKey('f', 50);
+    h.apply(res, e.cursor, e.hintActive);
+    assert.ok(spans()[at(m, 'function')].classList.contains('scope-bg'));
+  });
+
+  ok('スコープを外れると前の scope-bg が外れる(差分適用)', () => {
+    // if の中に入る
+    const target = at(m, 'n <= 1');
+    while (e.cursor <= target && !e.done) autoType(e, h, m, 1);
+    assert.ok(spans()[at(m, 'if')].classList.contains('scope-bg'));
+  });
+
+  ok('setScopeBg(false) で即座にクリアされる', () => {
+    h.setScopeBg(false);
+    assert.ok(![...spans()].some((s) => s.classList.contains('scope-bg')));
+  });
+
+  ok('setScopeBg(true) で現在位置から再計算される', () => {
+    h.setScopeBg(true);
+    assert.ok([...spans()].some((s) => s.classList.contains('scope-bg')));
+  });
+}
+
+// ---------------------------------------------------------------- 参照ハイライト(§9, P6)
+console.log('参照ハイライト(§9):');
+{
+  const src = 'function add(a, b) {\n  return a + b;\n}\n';
+  const m = buildCharModel(src, 'javascript', await analyze(src, 'javascript'));
+  const h = new Hud(doc);
+  h.mount(m);
+  const e = new InputEngine(m);
+  e.start(0);
+  h.begin(e.cursor);
+
+  ok('識別子 "a" にカーソルが乗ると同名箇所すべてに ref-hl', () => {
+    const idxA1 = at(m, 'a,'); // 仮引数の a("add(a, b)")
+    const idxA2 = at(m, 'a + b'); // 本体内の使用箇所
+    while (e.cursor < idxA1 && !e.done) autoType(e, h, m, 1); // カーソルをちょうど a の上へ
+    assert.ok(spans()[idxA1].classList.contains('ref-hl'));
+    assert.ok(spans()[idxA2].classList.contains('ref-hl'));
+  });
+
+  ok('setRefHighlight(false) で即座にクリアされる', () => {
+    h.setRefHighlight(false);
+    assert.ok(![...spans()].some((s) => s.classList.contains('ref-hl')));
+  });
+}
+
+// ---------------------------------------------------------------- ヒートマップ/リズムグラフ(§7, P6)
+console.log('リザルト可視化(§7, P6):');
+{
+  const src = 'const x = 1;\nconsole.log(x);\n';
+  const m = buildCharModel(src, 'javascript', await analyze(src, 'javascript'));
+  const h = new Hud(doc);
+  h.mount(m);
+
+  ok('showResult でヒートマップ(circle)が描画される', () => {
+    h.showResult(dummyResult({ missIndices: [3, 3, 10] }), null, []);
+    assert.ok(doc.querySelectorAll('#rHeatmap circle').length > 0);
+    assert.match(doc.getElementById('rHeatmapNote').textContent, /MISSES: 3/);
+  });
+
+  ok('ミスなしは「ミスなし」表示', () => {
+    h.showResult(dummyResult({ missIndices: [] }), null, []);
+    assert.equal(doc.getElementById('rHeatmapNote').textContent, 'ミスなし');
+  });
+
+  ok('リズムグラフは events から polyline を描く', () => {
+    const events = [
+      { key: 'c', dt: 100, ok: true, passed: 0 },
+      { key: 'o', dt: 120, ok: true, passed: 0 },
+      { key: 'x', dt: 200, ok: false, passed: 0 },
+      { key: 'n', dt: 90, ok: true, passed: 0 },
+    ];
+    h.showResult(dummyResult(), null, events);
+    assert.equal(doc.querySelectorAll('#rRhythm polyline').length, 1);
+    assert.equal(doc.querySelectorAll('#rRhythm circle.rrhythm-miss').length, 1);
+  });
+
+  ok('result が表示状態になる(既存挙動の維持)', () => {
+    assert.ok(!doc.getElementById('result').classList.contains('hidden'));
   });
 }
 

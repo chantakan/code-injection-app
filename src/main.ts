@@ -18,7 +18,10 @@ import difficultyWasmUrl from './wasm/difficulty/difficulty_engine_bg.wasm?url';
 import type {
   CharModel,
   DifficultyBreakdown,
+  EffectLevel,
+  HistoryEntry,
   KeyResult,
+  LanguageId,
   Replay,
   SessionResult,
 } from './types';
@@ -41,6 +44,8 @@ import {
 import { decodeReplay, encodeReplay, hashSource } from './replay';
 import { LocalStore } from './storage';
 import { GhostPlayer } from './ghost';
+import { SettingsStore } from './settings';
+import { BackgroundFX } from './background';
 
 initAnalyzer({ runtimeWasmPath: treeSitterWasmUrl });
 initDifficulty({ wasmUrl: difficultyWasmUrl });
@@ -86,6 +91,18 @@ interface Session {
 const hud = new Hud();
 const sound = new Sound();
 const store = new LocalStore();
+const settingsStore = new SettingsStore();
+let settings = settingsStore.get();
+hud.setScopeBg(settings.scopeBg); // §9(既定 ON。設定画面で変更)
+hud.setRefHighlight(settings.refHighlight);
+
+const reducedMotion = matchMedia('(prefers-reduced-motion: reduce)').matches;
+const bg = new BackgroundFX(mustGet('bgfx') as HTMLCanvasElement, {
+  getLevel: () => settings.effectLevel,
+  reducedMotion,
+});
+bg.start(); // §7: 背景アニメはメニュー/リザルトのみ。イントロは初期表示状態なので開始する
+
 let session: Session | null = null;
 /** URL ハッシュ(#r=…)から復号した共有リプレイ(§11)。同じ原文を読み込むと発動 */
 let sharedReplay: Replay | null = null;
@@ -158,6 +175,7 @@ async function launchAsync(text: string, fileName: string | null): Promise<void>
 
   hud.mount(model);
   mustGet('intro').classList.add('hidden');
+  bg.stop(); // §7: プレイ中は背景アニメを止める(静のベース)
 
   if (analysis.errorRatio > SYNTAX_CHECK.warnErrorRatio) {
     toast(`SYNTAX WARNING: ERROR率 ${pct(analysis.errorRatio)}(言語判定: ${detection.language})`);
@@ -202,8 +220,10 @@ function finish(s: Session, now: number): void {
       score: rankingScore(result.wpm, s.difficulty, lf),
     };
   }
-  hud.showResult(result, score);
+  // リズムグラフ(§7/§10)は replay() を同期で読めば十分(encode は persistResult 側で別途行う)
+  hud.showResult(result, score, s.engine.replay().events);
   hud.setGhost(null);
+  bg.start(); // §7: リザルトは背景アニメ対象
   // 保存・共有(P5 §11)は非同期で続行(失敗してもリザルト表示は既に出ている)
   persistResult(s, result, score).catch((e: unknown) => {
     console.warn('[CODE://INJECT] persist failed:', e);
@@ -233,6 +253,7 @@ async function persistResult(
     sourceHash: s.sourceHash,
     typableCount: s.model.typableCount,
   });
+  renderHistory(); // §7 ホーム一覧(次にホームへ戻ったとき最新化されている)
   const isBest = store.saveGhostIfBetter(s.sourceHash, encoded, result.wpm, result.finishedAt);
   shareUrl = `${location.origin}${location.pathname}#r=${encoded}`;
   mustGet('rGhostNote').textContent = isBest
@@ -302,6 +323,100 @@ function playFor(model: CharModel, res: KeyResult): void {
       break;
   }
 }
+
+// ------------------------------------------------------------ P6: ホーム履歴(§7, §11)
+
+/** 言語アイコン(§7)と同じ短縮表記。履歴一覧の言語列に使う */
+const LANG_LABEL: Record<LanguageId, string> = {
+  javascript: 'JS',
+  typescript: 'TS',
+  python: 'PY',
+  c: 'C',
+  rust: 'RS',
+  go: 'GO',
+  haskell: 'HS',
+  lean4: 'λ4',
+  plain: 'TXT',
+};
+
+function renderHistory(): void {
+  const list = mustGet('historyList');
+  list.textContent = '';
+  const frag = document.createDocumentFragment();
+  for (const h of store.history()) {
+    frag.appendChild(historyItem(h));
+  }
+  list.appendChild(frag);
+}
+
+function historyItem(h: HistoryEntry): HTMLLIElement {
+  const li = document.createElement('li');
+  li.className = 'history-item';
+
+  const lang = document.createElement('span');
+  lang.className = 'hi-lang';
+  lang.textContent = LANG_LABEL[h.language];
+
+  const file = document.createElement('span');
+  file.className = 'hi-file';
+  file.textContent = h.fileName ?? '(ペースト)';
+
+  const wpm = document.createElement('span');
+  wpm.className = 'hi-wpm';
+  wpm.textContent = `${Math.round(h.wpm)} WPM`;
+
+  const score = document.createElement('span');
+  score.className = 'hi-score';
+  score.textContent = h.score === null ? '—' : (Math.round(h.score * 10) / 10).toFixed(1);
+
+  const date = document.createElement('span');
+  date.className = 'hi-date';
+  date.textContent = new Date(h.finishedAt).toLocaleDateString('ja-JP', {
+    month: 'numeric',
+    day: 'numeric',
+  });
+
+  li.append(lang, file, wpm, score, date);
+  return li;
+}
+
+renderHistory(); // 起動時: 前回までの履歴を表示(§11、端末内 localStorage)
+
+// ------------------------------------------------------------ P6: 設定画面(§7, §9)
+
+function syncSettingsUI(): void {
+  for (const el of document.querySelectorAll<HTMLInputElement>('input[name="effectLevel"]')) {
+    el.checked = el.value === settings.effectLevel;
+  }
+  (mustGet('scopeBgToggle') as HTMLInputElement).checked = settings.scopeBg;
+  (mustGet('refHighlightToggle') as HTMLInputElement).checked = settings.refHighlight;
+}
+
+mustGet('settingsBtn').addEventListener('click', () => {
+  syncSettingsUI();
+  mustGet('settings').classList.remove('hidden');
+});
+mustGet('settingsClose').addEventListener('click', () => {
+  mustGet('settings').classList.add('hidden');
+  hud.focus();
+});
+
+for (const el of document.querySelectorAll<HTMLInputElement>('input[name="effectLevel"]')) {
+  el.addEventListener('change', (e) => {
+    const value = (e.currentTarget as HTMLInputElement).value as EffectLevel;
+    settings = settingsStore.set({ effectLevel: value });
+  });
+}
+(mustGet('scopeBgToggle') as HTMLInputElement).addEventListener('change', (e) => {
+  const on = (e.currentTarget as HTMLInputElement).checked;
+  settings = settingsStore.set({ scopeBg: on });
+  hud.setScopeBg(on);
+});
+(mustGet('refHighlightToggle') as HTMLInputElement).addEventListener('change', (e) => {
+  const on = (e.currentTarget as HTMLInputElement).checked;
+  settings = settingsStore.set({ refHighlight: on });
+  hud.setRefHighlight(on);
+});
 
 // ------------------------------------------------------------ UI ボタン / 定期更新
 

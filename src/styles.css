@@ -27,6 +27,19 @@ body {
     transparent 1px, transparent 3px);
 }
 
+/* ---------- 背景アニメ(§7: メニュー/リザルトのみ。main.ts が start/stop) ---------- */
+#bgfx {
+  position: fixed;
+  inset: 0;
+  width: 100vw;
+  height: 100vh;
+  z-index: 0;
+  pointer-events: none;
+}
+.stage, .overlay { position: relative; z-index: 1; }
+/* ヘッダーは常に最前面(オーバーレイ表示中でも設定ボタン等を押せるようにする) */
+.hud, .combo-bar { position: relative; z-index: 2; }
+
 /* ---------- HUD ---------- */
 .hud {
   display: flex;
@@ -73,6 +86,13 @@ body {
 }
 .sound-toggle[data-on="true"] { color: var(--lit); border-color: var(--lit); }
 .sound-toggle:focus-visible { outline: 2px solid var(--lit); outline-offset: 2px; }
+
+.icon-btn {
+  background: none; border: 1px solid var(--line); color: #565b7a;
+  font-size: 13px; line-height: 1; padding: 5px 9px; cursor: pointer;
+}
+.icon-btn:hover { color: var(--lit); border-color: var(--lit); }
+.icon-btn:focus-visible { outline: 2px solid var(--lit); outline-offset: 2px; }
 
 .combo-bar { height: 2px; background: var(--line); position: relative; }
 .combo-bar .fill {
@@ -164,6 +184,13 @@ body.shake .stage { animation: shake .12s 1; }
 
 .newline-mark { color: #2a2e45; font-size: 12px; }
 
+/* ---------- スコープ背景・参照ハイライト(§9, P6, 設定 ON/OFF) ----------
+   状態色(done/passed/cur/hint等)を隠さないよう、色そのものは変えず
+   背景色/下線という「地」の演出だけにする */
+.ch.scope-bg { background: rgba(0, 240, 255, 0.035); }
+.row.current .ch.scope-bg { background: rgba(0, 240, 255, 0.06); }
+.ch.ref-hl:not(.cur) { box-shadow: inset 0 -2px 0 rgba(247, 224, 23, 0.35); }
+
 /* ---------- 薄字シンタックスハイライト(§9, P2) ----------
    未入力の薄字(--dim #3a3f5c)と同程度の明度で低彩度の色相だけ変える。
    :where() で指定度を .ch 単独と同じに抑えてあるため、状態色
@@ -254,6 +281,80 @@ body.shake .stage { animation: shake .12s 1; }
   background: rgba(247,224,23,.08);
   box-shadow: 0 0 14px rgba(247,224,23,.25);
 }
+
+/* ---------- ホーム: 言語アイコン(§7) ---------- */
+.lang-icons {
+  display: flex; flex-wrap: wrap; gap: 8px; justify-content: center;
+  list-style: none; margin-top: 24px;
+}
+.lang-icon {
+  font-family: 'Chakra Petch', sans-serif;
+  font-size: 11px; letter-spacing: 1px; color: #8890b5;
+  border: 1px solid var(--line); padding: 5px 9px;
+  background: rgba(0,240,255,.03);
+}
+
+/* ---------- ホーム: ローカル履歴(§7, §11) ---------- */
+.history { margin-top: 26px; text-align: left; }
+.history h2 {
+  font-family: 'Chakra Petch', sans-serif; font-size: 10px; letter-spacing: 2px;
+  color: #565b7a; border-bottom: 1px solid var(--line); padding-bottom: 6px; margin-bottom: 8px;
+}
+.history-list { list-style: none; max-height: 220px; overflow-y: auto; }
+.history-list:empty::after {
+  content: '記録なし — 写経すると履歴がここに残ります(端末内のみ §11)';
+  display: block; color: #565b7a; font-size: 11px; padding: 6px 0;
+}
+.history-item {
+  display: grid;
+  grid-template-columns: 2.4em 1fr auto auto auto;
+  gap: 10px; align-items: baseline;
+  padding: 5px 0; border-bottom: 1px solid rgba(24,24,48,.6);
+  font-size: 11px; color: #8890b5;
+}
+.history-item .hi-lang { color: var(--lit); font-family: 'Chakra Petch', sans-serif; }
+.history-item .hi-file { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.history-item .hi-score { color: var(--combo); text-align: right; }
+.history-item .hi-date { color: #565b7a; text-align: right; }
+
+/* ---------- 設定画面(§7, §9) ---------- */
+.setting-group {
+  border: 1px solid var(--line); margin-top: 18px; padding: 12px 16px 14px;
+  text-align: left;
+}
+.setting-group legend {
+  font-family: 'Chakra Petch', sans-serif; font-size: 10px; letter-spacing: 2px;
+  color: #565b7a; padding: 0 6px;
+}
+.setting-group label {
+  display: flex; align-items: center; gap: 8px;
+  font-size: 12px; color: #cfd6ff; padding: 5px 0; cursor: pointer;
+}
+.setting-group input { accent-color: var(--lit); }
+
+/* ---------- リザルト可視化(§7, §10, P6) ---------- */
+.result-viz { display: flex; gap: 22px; margin-top: 22px; justify-content: center; flex-wrap: wrap; }
+.result-viz-item { width: 220px; }
+.result-viz-item h2 {
+  font-family: 'Chakra Petch', sans-serif; font-size: 9px; letter-spacing: 2px;
+  color: #565b7a; margin-bottom: 6px; text-align: left;
+}
+.result-viz-note { font-size: 10px; color: #565b7a; margin-top: 4px; text-align: left; }
+
+/* ミス箇所ヒートマップ(§7「回路基板風」) */
+.rheat { width: 100%; height: 90px; background: rgba(14,14,26,.5); border: 1px solid var(--line); }
+.rheat-trace { fill: none; stroke: rgba(0,240,255,.18); stroke-width: 1; }
+.rheat-node { stroke: none; }
+.rheat-i0 { fill: #232842; }                          /* ミスなし = 通電しない暗さ */
+.rheat-i1 { fill: #3f6a80; }                           /* 軽微 */
+.rheat-i2 { fill: var(--lit); filter: drop-shadow(0 0 3px rgba(0,240,255,.6)); }
+.rheat-i3 { fill: var(--miss); filter: drop-shadow(0 0 5px rgba(255,42,109,.8)); } /* 集中ミス */
+
+/* リズムグラフ(§7, §10) */
+.rrhythm { width: 100%; height: 72px; background: rgba(14,14,26,.5); border: 1px solid var(--line); }
+.rrhythm-base { stroke: var(--line); stroke-width: 1; }
+.rrhythm-line { fill: none; stroke: var(--lit); stroke-width: 1.4; }
+.rrhythm-miss { fill: var(--miss); }
 
 /* ---------- §4 構文チェック警告トースト(P2。警告方式=表示のみ) ---------- */
 .toast {

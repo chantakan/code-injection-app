@@ -222,8 +222,27 @@ export type SoundKind = 'hit' | 'miss' | 'ghost' | 'enter';
 
 // ------------------------------------------------------------------- 設定(§7)
 
-/** 演出強度(§7)。P6 で設定画面に載せる。P1 は 'normal' 固定 */
+/** 演出強度(§7)。P1〜P5 は 'normal' 固定。P6 で設定画面から変更可能にする */
 export type EffectLevel = 'off' | 'low' | 'normal';
+
+/**
+ * 設定画面(§7, §9, P6)。localStorage に保存(settings.ts)。
+ * - effectLevel: 背景アニメ・グロー等の演出強度
+ * - scopeBg: 現在のブロック範囲の背景を微着色(§9)
+ * - refHighlight: 打鍵中の識別子と同名箇所を薄く発光(§9、名前一致ベース)
+ */
+export interface Settings {
+  effectLevel: EffectLevel;
+  scopeBg: boolean;
+  refHighlight: boolean;
+}
+
+/** 設定の既定値。初回起動時・壊れた保存値のフォールバック */
+export const DEFAULT_SETTINGS: Settings = {
+  effectLevel: 'normal',
+  scopeBg: true,
+  refHighlight: true,
+} as const;
 
 // ------------------------------------------------------------------- 定数
 
@@ -386,4 +405,48 @@ export interface DifficultyBreakdown extends DifficultyScore {
   nestDepthNorm: number;
   /** 識別子反復率 0–1(生値。式には min(生値, 0.5) が使われる §13) */
   identRepetition: number;
+}
+
+// ------------------------------------------ P6: リザルト可視化(§7, §10, heatmap.ts/rhythm.ts)
+
+/**
+ * ミス箇所ヒートマップ 1 ノード(§7「回路基板風」)。
+ * cells インデックス範囲をバケットに集約した格子点。circuit board のノード 1 個に対応
+ */
+export interface HeatmapNode {
+  /** 格子上の位置(0-based) */
+  col: number;
+  row: number;
+  /** このバケットのミス数 */
+  count: number;
+  /** count を maxCount で正規化した 0–1(全ノード count=0 なら 0) */
+  intensity: number;
+  /** バケットが対応する cells 範囲(半開区間)。デバッグ・将来のドリルダウン用 */
+  start: number;
+  end: number;
+}
+
+/** heatmap.ts の出力。hud.showResult がこのまま描画する */
+export interface HeatmapData {
+  nodes: HeatmapNode[];
+  cols: number;
+  rows: number;
+  maxCount: number;
+  totalMisses: number;
+}
+
+/** リズムグラフ 1 点(§7, §10)。x/y とも 0–1 正規化済み(SVG 座標への写像は描画側) */
+export interface RhythmPoint {
+  /** 経過時間の割合(0=開始, 1=完走時) */
+  t: number;
+  /** 打鍵速度の正規化値(速いほど 1 に近い)。dt が小さいほど高い */
+  v: number;
+}
+
+/** rhythm.ts の出力 */
+export interface RhythmSeries {
+  /** 正解打鍵(hit/pass)の系列。折れ線グラフの点 */
+  points: RhythmPoint[];
+  /** ミス発生位置(t のみ。グラフ上に赤点として重ねる) */
+  misses: number[];
 }
