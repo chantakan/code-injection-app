@@ -42,9 +42,10 @@ jobs:
             set net:timeout 30;
             set net:max-retries 5;
             set net:reconnect-interval-base 5;
+            open -u $FTP_USERNAME,$FTP_PASSWORD $FTP_SERVER;
             mirror --reverse --delete --verbose --parallel=3 --exclude-glob server/ ./dist/ $FTP_SERVER_DIR;
             quit;
-          " -u "$FTP_USERNAME","$FTP_PASSWORD" "$FTP_SERVER"
+          "
 
       - name: Deploy PHP backend (server/, data/ を除外して既存のランキングデータを保護)
         env:
@@ -60,6 +61,7 @@ jobs:
             set net:timeout 30;
             set net:max-retries 5;
             set net:reconnect-interval-base 5;
+            open -u $FTP_USERNAME,$FTP_PASSWORD $FTP_SERVER;
             mirror --reverse --verbose --exclude-glob data/ ./server/ $FTP_SERVER_DIR/server;
             quit;
-          " -u "$FTP_USERNAME","$FTP_PASSWORD" "$FTP_SERVER"
+          "
